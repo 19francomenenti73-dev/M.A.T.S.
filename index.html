@@ -271,7 +271,7 @@
         </div>
     </div>
 
-    <!-- Leaflet e Engine 3D Canvas Nativo -->
+    <!-- Leaflet e Engine 3D -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         var map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
@@ -309,12 +309,10 @@
                     structures.forEach(track => {
                         let center = track.center;
 
-                        // 1. Tracciato Storico
                         if (track.actual_path && track.actual_path.length > 0) {
                             L.polyline(track.actual_path, { color: '#0066cc', weight: 4, opacity: 0.85 }).addTo(vectorsLayer);
                         }
 
-                        // 2. Centroide Cella
                         if (center && center.length === 2) {
                             let centroidIcon = L.divIcon({
                                 className: 'custom-centroid',
@@ -327,7 +325,6 @@
                             marker.on('click', () => open3DViewer(track));
                         }
 
-                        // 3. Vettore Predittivo
                         if (track.forecast_path && track.forecast_path.length > 0 && center) {
                             L.polyline([center, ...track.forecast_path], { color: '#ff1a1a', weight: 3, dashArray: '5, 6', opacity: 0.8 }).addTo(vectorsLayer);
                             track.forecast_path.forEach(fPoint => {
@@ -345,7 +342,7 @@
                 .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
         }
 
-        // Engine Visore 3D Volumetrico Interattivo con Colonne (Sbarre)
+        // Engine 3D Interattivo con Rendering Solido a Colonne (Sbarre Verticali)
         var currentTrack = null;
         var rotX = 0.6, rotY = 0.78;
         var isDragging = false;
@@ -387,5 +384,107 @@
             }
         });
         window.addEventListener('touchend', () => isDragging = false);
-        window.addEventListener('touchmove',
-        
+        window.addEventListener('touchmove', e => {
+            if (!isDragging || e.touches.length !== 1) return;
+            rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
+            rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
+            lastMouseX = e.touches[0].clientX;
+            lastMouseY = e.touches[0].clientY;
+            render3D();
+        });
+
+        function getColor(val) {
+            if (val >= 12) return '#ff00ff';
+            if (val >= 10) return '#ff0000';
+            if (val >= 8)  return '#ffff00';
+            if (val >= 6)  return '#00ff00';
+            if (val >= 4)  return '#00ffff';
+            if (val >= 2)  return '#0066cc';
+            return null;
+        }
+
+        function render3D() {
+            if (!currentTrack) return;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let matrix = currentTrack.grid_matrix || [];
+            let rows = matrix.length;
+            let cols = rows > 0 ? matrix[0].length : 0;
+
+            let cx = canvas.width / 2;
+            let cy = canvas.height / 2 + 60;
+            let scale = Math.min(canvas.width, canvas.height) / 28;
+
+            let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+            let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+
+            // Raccolta elementi colonna da ordinare per profondità (Painter's Algorithm)
+            let columnsToDraw = [];
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let val = matrix[r][c];
+                    if (val <= 0) continue;
+
+                    let x = (c - cols / 2) * 1.2;
+                    let y = (r - rows / 2) * 1.2;
+
+                    // Proiezione Base (z = 0)
+                    let x1_b = x * cosY;
+                    let z1_b = x * sinY;
+                    let y2_b = y * cosX - z1_b * sinX;
+                    let z2_b = y * sinX + z1_b * cosX;
+
+                    // Proiezione Cima (z = val)
+                    let z_top = val * 0.9;
+                    let x1_t = x * cosY - z_top * sinY;
+                    let z1_t = x * sinY + z_top * cosY;
+                    let y2_t = y * cosX - z1_t * sinX;
+                    let z2_t = y * sinX + z1_t * cosX;
+
+                    columnsToDraw.push({
+                        val: val,
+                        color: getColor(val),
+                        depth: z2_b,
+                        px_base: cx + x1_b * scale,
+                        py_base: cy + y2_b * scale,
+                        px_top: cx + x1_t * scale,
+                        py_top: cy + y2_t * scale
+                    });
+                }
+            }
+
+            // Ordinamento dal punto più lontano a quello più vicino
+            columnsToDraw.sort((a, b) => a.depth - b.depth);
+
+            // Disegno delle colonne solide come barrette verticali spesse
+            let barWidth = scale * 0.75;
+
+            columnsToDraw.forEach(col => {
+                ctx.strokeStyle = col.color;
+                ctx.fillStyle = col.color;
+                ctx.lineWidth = barWidth;
+                ctx.lineCap = 'round';
+
+                // Tratto verticale continuo da base a cima
+                ctx.beginPath();
+                ctx.moveTo(col.px_base, col.py_base);
+                ctx.lineTo(col.px_top, col.py_top);
+                ctx.stroke();
+
+                // Cappuccio superiore
+                ctx.beginPath();
+                ctx.arc(col.px_top, col.py_top, barWidth / 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+        }
+
+        loadTrackerData();
+        setInterval(loadTrackerData, 180000);
+    </script>
+</body>
+                </html>
+                

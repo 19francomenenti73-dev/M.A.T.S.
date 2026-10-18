@@ -1,5 +1,5 @@
 {
-    "generated_at": "2026-10-18T07:03:13.086830Z",
+    "generated_at": "2026-10-18T07:10:30.613416Z",
     "radar_tile": {
         "host": "https://tilecache.rainviewer.com",
         "path": "/v2/radar/20010bdfd27a"
@@ -13,7 +13,7 @@
             ],
             "speed_kmh": 50,
             "direction_deg": 4,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Supercella / Cella",
             "vil": 12.7,
             "echo_top": 7.5,
             "eta_hours": 5.5,
@@ -319,7 +319,7 @@
             ],
             "speed_kmh": 63,
             "direction_deg": 332,
-            "intensity": ">= 32 dBZ - Echo Hook",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Echo Hook",
             "vil": 25.8,
             "echo_top": 10.1,
             "eta_hours": 4.4,
@@ -625,7 +625,7 @@
             ],
             "speed_kmh": 48,
             "direction_deg": 1,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "55 dBZ (RR: 99.9 mm/h) - Supercella / Cella",
             "vil": 12.3,
             "echo_top": 7.5,
             "eta_hours": 5.8,
@@ -931,7 +931,7 @@
             ],
             "speed_kmh": 45,
             "direction_deg": 318,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Supercella / Cella",
             "vil": 11.9,
             "echo_top": 7.4,
             "eta_hours": 6.2,
@@ -1232,17 +1232,17 @@
         {
             "id": "Core-485-5",
             "center": [
-                42.90816007196054,
+                42.90816007196053,
                 6.15234375
             ],
             "speed_kmh": 59,
             "direction_deg": 310,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Supercella / Cella",
             "vil": 14.3,
             "echo_top": 7.8,
             "eta_hours": 4.7,
             "coast_target": [
-                44.515129096176885,
+                44.51512909617688,
                 4.237232642202555
             ],
             "grid_matrix": [
@@ -1504,33 +1504,33 @@
             ],
             "actual_path": [
                 [
-                    42.817141346428926,
+                    42.81714134642892,
                     6.260815643145647
                 ],
                 [
-                    42.84748092160613,
+                    42.84748092160612,
                     6.224658345430432
                 ],
                 [
-                    42.877820496783336,
+                    42.87782049678333,
                     6.188501047715215
                 ],
                 [
-                    42.90816007196054,
+                    42.90816007196053,
                     6.15234375
                 ]
             ],
             "forecast_path": [
                 [
-                    42.93849964713774,
+                    42.93849964713773,
                     6.116186452284785
                 ],
                 [
-                    42.96883922231495,
+                    42.96883922231494,
                     6.080029154569568
                 ],
                 [
-                    42.99917879749215,
+                    42.99917879749214,
                     6.043871856854353
                 ]
             ]
@@ -1538,17 +1538,17 @@
         {
             "id": "Core-485-6",
             "center": [
-                42.90816007196054,
+                42.90816007196053,
                 10.37109375
             ],
             "speed_kmh": 44,
             "direction_deg": 9,
-            "intensity": ">= 32 dBZ - Echo Hook",
+            "intensity": "55 dBZ (RR: 99.9 mm/h) - Echo Hook",
             "vil": 22.4,
             "echo_top": 9.4,
             "eta_hours": 6.3,
             "coast_target": [
-                45.377380923448385,
+                45.37738092344838,
                 10.762179912600578
             ],
             "grid_matrix": [
@@ -1810,33 +1810,33 @@
             ],
             "actual_path": [
                 [
-                    42.80386018319369,
+                    42.803860183193684,
                     10.354574270491751
                 ],
                 [
-                    42.83862681278264,
+                    42.838626812782636,
                     10.360080763661168
                 ],
                 [
-                    42.87339344237159,
+                    42.87339344237158,
                     10.365587256830583
                 ],
                 [
-                    42.90816007196054,
+                    42.90816007196053,
                     10.37109375
                 ]
             ],
             "forecast_path": [
                 [
-                    42.94292670154949,
+                    42.94292670154948,
                     10.376600243169417
                 ],
                 [
-                    42.97769333113843,
+                    42.977693331138425,
                     10.382106736338832
                 ],
                 [
-                    43.012459960727384,
+                    43.01245996072738,
                     10.387613229508249
                 ]
             ]
@@ -1849,7 +1849,7 @@
             ],
             "speed_kmh": 51,
             "direction_deg": 23,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Supercella / Cella",
             "vil": 12.9,
             "echo_top": 7.6,
             "eta_hours": 5.4,
@@ -2155,7 +2155,7 @@
             ],
             "speed_kmh": 61,
             "direction_deg": 19,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Supercella / Cella",
             "vil": 20.1,
             "echo_top": 9.0,
             "eta_hours": 4.5,
@@ -2456,17 +2456,17 @@
         {
             "id": "Core-485-9",
             "center": [
-                44.21370990970204,
+                44.21370990970205,
                 5.9326171875
             ],
             "speed_kmh": 55,
             "direction_deg": 335,
-            "intensity": ">= 32 dBZ - BOW Echo",
+            "intensity": "40 dBZ (RR: 11.5 mm/h) - BOW Echo",
             "vil": 13.6,
             "echo_top": 7.7,
             "eta_hours": 5.0,
             "coast_target": [
-                46.479479377293664,
+                46.47947937729367,
                 4.876071533148252
             ],
             "grid_matrix": [
@@ -2728,33 +2728,33 @@
             ],
             "actual_path": [
                 [
-                    44.0940772818132,
+                    44.094077281813206,
                     5.988402798049773
                 ],
                 [
-                    44.13395482444282,
+                    44.133954824442824,
                     5.969807594533181
                 ],
                 [
-                    44.17383236707243,
+                    44.173832367072436,
                     5.951212391016591
                 ],
                 [
-                    44.21370990970204,
+                    44.21370990970205,
                     5.9326171875
                 ]
             ],
             "forecast_path": [
                 [
-                    44.25358745233165,
+                    44.25358745233166,
                     5.914021983983409
                 ],
                 [
-                    44.29346499496126,
+                    44.29346499496127,
                     5.895426780466819
                 ],
                 [
-                    44.33334253759088,
+                    44.33334253759089,
                     5.876831576950227
                 ]
             ]
@@ -2767,7 +2767,7 @@
             ],
             "speed_kmh": 49,
             "direction_deg": 57,
-            "intensity": ">= 32 dBZ - Echo Hook",
+            "intensity": "48 dBZ (RR: 36.5 mm/h) - Echo Hook",
             "vil": 23.3,
             "echo_top": 9.6,
             "eta_hours": 5.7,
@@ -3073,7 +3073,7 @@
             ],
             "speed_kmh": 58,
             "direction_deg": 51,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "40 dBZ (RR: 11.5 mm/h) - Supercella / Cella",
             "vil": 14.1,
             "echo_top": 7.8,
             "eta_hours": 4.8,
@@ -3379,7 +3379,7 @@
             ],
             "speed_kmh": 49,
             "direction_deg": 22,
-            "intensity": ">= 32 dBZ - Supercella / Cella",
+            "intensity": "40 dBZ (RR: 11.5 mm/h) - Supercella / Cella",
             "vil": 18.0,
             "echo_top": 8.6,
             "eta_hours": 5.7,
@@ -3685,7 +3685,7 @@
             ],
             "speed_kmh": 53,
             "direction_deg": 86,
-            "intensity": ">= 32 dBZ - MCV (Mesoscale Convective Vortex)",
+            "intensity": "40 dBZ (RR: 11.5 mm/h) - MCV (Mesoscale Convective Vortex)",
             "vil": 40.3,
             "echo_top": 12.9,
             "eta_hours": 5.2,
@@ -3991,7 +3991,7 @@
             ],
             "speed_kmh": 43,
             "direction_deg": 84,
-            "intensity": ">= 32 dBZ - Echo Hook",
+            "intensity": "18 dBZ (RR: 0.5 mm/h) - Echo Hook",
             "vil": 27.6,
             "echo_top": 10.4,
             "eta_hours": 6.5,
@@ -4297,7 +4297,7 @@
             ],
             "speed_kmh": 52,
             "direction_deg": 68,
-            "intensity": ">= 32 dBZ - BOW Echo",
+            "intensity": "40 dBZ (RR: 11.5 mm/h) - BOW Echo",
             "vil": 70.0,
             "echo_top": 16.0,
             "eta_hours": 5.3,

@@ -338,17 +338,21 @@
 
                         // 3. Vettore Predittivo Normale (Traiettoria standard cella)
                         if (track.forecast_path && track.forecast_path.length > 0 && center) {
-                            L.polyline([center, ...track.forecast_path], { color: cellColor, weight: 3, dashArray: '5, 6', opacity: 0.85 }).addTo(vectorsLayer);
+                            L.polyline([center, ...track.forecast_path], { color: '#ff1a1a', weight: 3, dashArray: '5, 6', opacity: 0.9 }).addTo(vectorsLayer);
                         }
 
-                        // 4. Cono ETA in Costa (Stile NOAA)
+                        // 4. Cono ETA in Costa (Stile NOAA perfettamente allineato al vettore)
                         if (track.coast_target && center) {
                             let target = track.coast_target;
                             let dLat = target[0] - center[0];
                             let dLon = target[1] - center[1];
                             
-                            let coneLeft = [target[0] - dLon * 0.25, target[1] + dLat * 0.25];
-                            let coneRight = [target[0] + dLon * 0.25, target[1] - dLat * 0.25];
+                            // Apertura simmetrica lungo l'asse della direzione di marcia
+                            let perpLat = -dLon * 0.25;
+                            let perpLon = dLat * 0.25;
+
+                            let coneLeft = [target[0] + perpLat, target[1] + perpLon];
+                            let coneRight = [target[0] - perpLat, target[1] - perpLon];
 
                             L.polygon([center, coneLeft, coneRight], {
                                 color: '#ff5500',

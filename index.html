@@ -281,7 +281,7 @@
             return '#0066ff';
         }
 
-        // Calcola il valore massimo presente nella griglia per determinare la severità
+        // Calcola il valore massimo della matrice per determinare la severità cromatica
         function getMaxVal(matrix) {
             if (!matrix || matrix.length === 0) return 4;
             let max = 0;
@@ -318,12 +318,12 @@
                         let peakVal = getMaxVal(track.grid_matrix);
                         let cellColor = getColor(peakVal);
 
-                        // 1. Tracciato Storico
+                        // 1. Vettore Storico
                         if (track.actual_path && track.actual_path.length > 0) {
                             L.polyline(track.actual_path, { color: '#0066cc', weight: 4, opacity: 0.85 }).addTo(vectorsLayer);
                         }
 
-                        // 2. Anello Centroide Pulsante basato sul colore di severità
+                        // 2. Anello Centroide Pulsante con colore di severità
                         if (center && center.length === 2) {
                             let centroidIcon = L.divIcon({
                                 className: 'custom-centroid',
@@ -368,16 +368,17 @@
                 .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
         }
 
-        // Engine 3D Voxel originale stabile (Mattoncini Lego pieni)
+        // Engine 3D Voxel a Colonne Dritte e Ancorate (INTATTO)
         var currentTrack = null;
-        var rotX = 0.6, rotY = 0.78;
+        var rotX = 0.5; // Inclinazione prospettica fissa e pulita
+        var rotY = 0.0; // Rotazione orizzontale a 360 gradi
         var isDragging = false;
         var lastMouseX, lastMouseY;
 
         function open3DViewer(track) {
             currentTrack = track;
-            rotX = 0.6;
-            rotY = 0.78;
+            rotY = 0.0;
+            rotX = 0.5;
             document.getElementById('modal-cell-id').innerText = track.id + " | " + track.intensity;
             document.getElementById('modal-cell-details').innerText = `Velocità: ${track.speed_kmh} km/h (${track.direction_deg}°) | VIL: ${track.vil} kg/m² | Echo Top: ${track.echo_top} km`;
             document.getElementById('viewer-3d-modal').style.display = 'flex';
@@ -398,8 +399,9 @@
         window.addEventListener('mousemove', e => {
             if (!isDragging) return;
             rotY += (e.clientX - lastMouseX) * 0.008;
-            rotX += (e.clientY - lastMouseY) * 0.008;
-            rotX = Math.max(0.2, Math.min(1.2, rotX));
+            rotX += (e.clientY - lastMouseY) * 0.005;
+            rotX = Math.max(0.15, Math.min(0.85, rotX)); // Limiti rigidi: non si ribalta MAI
+
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
             render3D();
@@ -416,8 +418,9 @@
         window.addEventListener('touchmove', e => {
             if (!isDragging || e.touches.length !== 1) return;
             rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
-            rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
-            rotX = Math.max(0.2, Math.min(1.2, rotX));
+            rotX += (e.touches[0].clientY - lastMouseY) * 0.005;
+            rotX = Math.max(0.15, Math.min(0.85, rotX));
+
             lastMouseX = e.touches[0].clientX;
             lastMouseY = e.touches[0].clientY;
             render3D();
@@ -435,64 +438,67 @@
             let cols = rows > 0 ? matrix[0].length : 0;
 
             let cx = canvas.width / 2;
-            let cy = canvas.height / 2;
-            let scale = Math.min(canvas.width, canvas.height) / 24;
+            let cy = canvas.height / 2 + 60; // Centro d'appoggio della base orizzontale
+            let scale = Math.min(canvas.width, canvas.height) / 22;
 
             let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
             let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
 
             let columnsToDraw = [];
 
+            // 1. Mappiamo il piano di base orizzontale rotante (Z = 0)
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let val = matrix[r][c];
                     if (val <= 0) continue;
 
-                    let x = (c - cols / 2) * 1.1;
-                    let y = (r - rows / 2) * 1.1;
+                    let x = (c - cols / 2 + 0.5) * 1.0;
+                    let y = (r - rows / 2 + 0.5) * 1.0;
 
-                    let x1_b = x * cosY;
-                    let z1_b = x * sinY;
-                    let y2_b = y * cosX - z1_b * sinX;
-                    let z2_b = y * sinX + z1_b * cosX;
+                    // Coordinate 2D proiettate della BASE della colonna
+                    let px_base = cx + (x * cosY - y * sinY) * scale;
+                    let py_base = cy + (x * sinY + y * cosY) * sinX * scale;
+                    let depth = (x * sinY + y * cosY) * cosX; // Profondità pura per Painter's Algorithm
 
-                    let z_top = val * 0.8;
-                    let x1_t = x * cosY - z_top * sinY;
-                    let z1_t = x * sinY + z_top * cosY;
-                    let y2_t = y * cosX - z1_t * sinX;
+                    // L'altezza Z viene estesa rettamente verso l'alto (sull'asse Y dello schermo)
+                    let h_px = val * scale * 0.75;
+                    let px_top = px_base;
+                    let py_top = py_base - h_px;
 
                     columnsToDraw.push({
                         val: val,
                         color: getColor(val),
-                        depth: z2_b,
-                        px_b: cx + x1_b * scale,
-                        py_b: cy + y2_b * scale,
-                        px_t: cx + x1_t * scale,
-                        py_t: cy + y2_t * scale
+                        depth: depth,
+                        px_base: px_base,
+                        py_base: py_base,
+                        px_top: px_top,
+                        py_top: py_top,
+                        h_px: h_px
                     });
                 }
             }
 
+            // 2. Ordiniamo per profondità (dal fondo verso il primo piano)
             columnsToDraw.sort((a, b) => a.depth - b.depth);
 
-            columnsToDraw.forEach(col => {
-                let w = scale * 0.95;
+            // 3. Disegniamo le colonne Lego dritte e ben definite
+            let barW = scale * 0.85;
 
+            columnsToDraw.forEach(col => {
                 ctx.fillStyle = col.color;
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
                 ctx.lineWidth = 1;
 
+                // Faccia verticale principale (colonna dritta ancorata)
                 ctx.beginPath();
-                ctx.moveTo(col.px_b - w / 2, col.py_b);
-                ctx.lineTo(col.px_b + w / 2, col.py_b);
-                ctx.lineTo(col.px_t + w / 2, col.py_t);
-                ctx.lineTo(col.px_t - w / 2, col.py_t);
-                ctx.closePath();
+                ctx.rect(col.px_base - barW / 2, col.py_top, barW, col.h_px);
                 ctx.fill();
                 ctx.stroke();
 
+                // Faccia superiore (Tetto Lego del blocco)
+                ctx.fillStyle = col.color;
                 ctx.beginPath();
-                ctx.rect(col.px_t - w / 2, col.py_t - w / 2, w, w);
+                ctx.rect(col.px_top - barW / 2, col.py_top - barW / 3, barW, barW / 3);
                 ctx.fill();
                 ctx.stroke();
             });

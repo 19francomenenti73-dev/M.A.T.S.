@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MATS 3D - Mesoscale Advanced Tracking System</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #0a0a0a;
+            color: #fff;
+            overflow: hidden;
+        }
+
+        #map {
+            width: 100%;
+            height: 100vh;
+        }
+
+        /* Header Tattico MATS */
+        .mats-header {
+            position: absolute;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 1000;
+            text-align: center;
+            pointer-events: none;
+            background: rgba(10, 10, 10, 0.85);
+            padding: 8px 24px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(6px);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.6);
+        }
+
+        .mats-title {
+            font-size: 32px;
+            font-weight: 900;
+            letter-spacing: 2px;
+            background: linear-gradient(45deg, #ff0000, #ff7f00, #ffff00, #00ff00, #00ffff, #0000ff, #8b00ff);
+            background-size: 400% 400%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            animation: rainbow-pulse 3s ease infinite;
+            margin: 0;
+            line-height: 1;
+        }
+
+        .mats-subtitle {
+            font-size: 11px;
+            font-weight: 700;
+            color: #00bfff;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            animation: blue-pulse 2s ease-in-out infinite;
+            margin-top: 4px;
+        }
+
+        @keyframes rainbow-pulse {
+            0% { background-position: 0% 50%; opacity: 0.85; transform: scale(0.98); }
+            50% { background-position: 100% 50%; opacity: 1; transform: scale(1.02); }
+            100% { background-position: 0% 50%; opacity: 0.85; transform: scale(0.98); }
+        }
+
+        @keyframes blue-pulse {
+            0% { opacity: 0.6; text-shadow: 0 0 2px rgba(0, 191, 255, 0.4); }
+            50% { opacity: 1; text-shadow: 0 0 10px rgba(0, 191, 255, 0.9); }
+            100% { opacity: 0.6; text-shadow: 0 0 2px rgba(0, 191, 255, 0.4); }
+        }
+
+        /* Crediti piccoli in basso a destra */
+        .source-credits {
+            position: absolute;
+            bottom: 6px;
+            right: 10px;
+            z-index: 1000;
+            font-size: 9px;
+            color: rgba(255, 255, 255, 0.5);
+            background: rgba(0, 0, 0, 0.6);
+            padding: 3px 8px;
+            border-radius: 4px;
+            pointer-events: auto;
+        }
+
+        .source-credits a {
+            color: rgba(0, 191, 255, 0.8);
+            text-decoration: none;
+        }
+
+        /* Banner Operativo Inferiore */
+        .map-banner {
+            position: absolute;
+            bottom: 24px;
+            left: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: rgba(18, 18, 18, 0.92);
+            padding: 8px 14px;
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+            border: 1px solid #333;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 12px;
+            color: #ddd;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        .counter-badge {
+            font-weight: bold;
+            color: #ff4d4d;
+            font-size: 14px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 11px;
+            color: #aaa;
+        }
+
+        /* Marker Centroide */
+        .centroid-dot {
+            width: 12px;
+            height: 12px;
+            background: #ffcc00;
+            border: 2px solid #fff;
+            border-radius: 50%;
+            box-shadow: 0 0 8px rgba(255, 204, 0, 0.9);
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        .centroid-dot:hover {
+            transform: scale(1.4);
+        }
+
+        /* Vettori Predittivi Pulsanti */
+        .pulsing-arrow {
+            width: 0;
+            height: 0;
+            border-left: 5px solid transparent;
+            border-right: 5px solid transparent;
+            border-bottom: 11px solid #ff1a1a;
+            animation: pulse-arrow 1.2s infinite;
+        }
+
+        @keyframes pulse-arrow {
+            0% { transform: scale(0.8); opacity: 0.6; }
+            50% { transform: scale(1.3); opacity: 1; }
+            100% { transform: scale(0.8); opacity: 0.6; }
+        }
+
+        /* Overlay Visore 3D Full-Screen */
+        #viewer-3d-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(5, 5, 8, 0.96);
+            z-index: 9999;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            touch-action: none;
+        }
+
+        #canvas-3d-container {
+            width: 100%;
+            height: 80vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+        }
+
+        #canvas-3d-container:active {
+            cursor: grabbing;
+        }
+
+        .modal-info-bar {
+            position: absolute;
+            top: 15px;
+            left: 15px;
+            right: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 10px 16px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .close-btn {
+            background: #ff3333;
+            color: #fff;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 13px;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            font-size: 11px;
+            color: #888;
+            pointer-events: none;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Header MATS -->
+    <div class="mats-header">
+        <div class="mats-title">MATS</div>
+        <div class="mats-subtitle">Mesoscale Advanced Tracking System</div>
+    </div>
+
+    <!-- Mappa -->
+    <div id="map"></div>
+
+    <!-- Crediti Fonti -->
+    <div class="source-credits">
+        Dati: <a href="https://www.rainviewer.com" target="_blank">RainViewer Radar API</a> | Mappa: &copy; Esri World Topo
+    </div>
+
+    <!-- Banner Inferiore -->
+    <div class="map-banner">
+        <div>
+            <span><b>Strutture 3D Rilevate:</b> <span id="active-count" class="counter-badge">0</span></span>
+            <span id="last-update" style="font-size: 10px; color: #888; border-left: 1px solid #444; margin-left: 10px; padding-left: 8px;"></span>
+        </div>
+        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <div class="legend-item"><span style="width: 14px; height: 3px; background: #0066cc;"></span> Storico</div>
+            <div class="legend-item"><span style="width: 8px; height: 8px; background: #ffcc00; border-radius: 50%;"></span> Centroide</div>
+            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ff1a1a; display:inline-block; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Predittivo 3h</div>
+        </div>
+    </div>
+
+    <!-- Full-Screen 3D Modal Viewer -->
+    <div id="viewer-3d-modal">
+        <div class="modal-info-bar">
+            <div>
+                <b id="modal-cell-id" style="font-size: 16px; color: #00bfff;">Core 3D</b>
+                <div id="modal-cell-details" style="font-size: 12px; color: #ccc;">-</div>
+            </div>
+            <button class="close-btn" onclick="close3DViewer()">CHIUDI [X]</button>
+        </div>
+        
+        <div id="canvas-3d-container">
+            <canvas id="viewer-canvas"></canvas>
+        </div>
+
+        <div class="controls-hint">
+            Ruota liberamente in 3D: Trascina il dito su smartphone o fai drag col mouse
+        </div>
+    </div>
+
+    <!-- Leaflet e Engine 3D Canvas Nativo -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        var map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
+        L.control.zoom({ position: 'bottomleft' }).addTo(map);
+
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+            maxZoom: 19,
+            attribution: ''
+        }).addTo(map);
+
+        var radarLayer = null;
+        var cellsLayer = L.layerGroup().addTo(map);
+        var vectorsLayer = L.layerGroup().addTo(map);
+
+        function loadTrackerData() {
+            fetch('centroids.json?' + new Date().getTime())
+                .then(res => res.json())
+                .then(data => {
+                    if (data.radar_tile && data.radar_tile.host && data.radar_tile.path) {
+                        let radarUrl = data.radar_tile.host + data.radar_tile.path + '/256/{z}/{x}/{y}/2/1_1.png';
+                        if (!radarLayer) {
+                            radarLayer = L.tileLayer(radarUrl, { opacity: 0.65, zIndex: 200 }).addTo(map);
+                        } else {
+                            radarLayer.setUrl(radarUrl);
+                        }
+                    }
+
+                    cellsLayer.clearLayers();
+                    vectorsLayer.clearLayers();
+
+                    let structures = data.macro_structures || [];
+                    document.getElementById('active-count').innerText = structures.length;
+                    document.getElementById('last-update').innerText = 'Aggiornato: ' + new Date().toLocaleTimeString();
+
+                    structures.forEach(track => {
+                        let center = track.center;
+
+                        // 1. Tracciato Storico
+                        if (track.actual_path && track.actual_path.length > 0) {
+                            L.polyline(track.actual_path, { color: '#0066cc', weight: 4, opacity: 0.85 }).addTo(vectorsLayer);
+                        }
+
+                        // 2. Centroide Cella
+                        if (center && center.length === 2) {
+                            let centroidIcon = L.divIcon({
+                                className: 'custom-centroid',
+                                html: `<div class="centroid-dot" title="Apri Profilo 3D ${track.id}"></div>`,
+                                iconSize: [12, 12],
+                                iconAnchor: [6, 6]
+                            });
+
+                            let marker = L.marker([center[0], center[1]], { icon: centroidIcon }).addTo(cellsLayer);
+                            marker.on('click', () => open3DViewer(track));
+                        }
+
+                        // 3. Vettore Predittivo
+                        if (track.forecast_path && track.forecast_path.length > 0 && center) {
+                            L.polyline([center, ...track.forecast_path], { color: '#ff1a1a', weight: 3, dashArray: '5, 6', opacity: 0.8 }).addTo(vectorsLayer);
+                            track.forecast_path.forEach(fPoint => {
+                                let arrowIcon = L.divIcon({
+                                    className: 'arrow-icon',
+                                    html: '<div class="pulsing-arrow"></div>',
+                                    iconSize: [10, 10],
+                                    iconAnchor: [5, 5]
+                                });
+                                L.marker([fPoint[0], fPoint[1]], { icon: arrowIcon }).addTo(vectorsLayer);
+                            });
+                        }
+                    });
+                })
+                .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
+        }
+
+        // Engine Visore 3D Volumetrico Interattivo
+        var currentTrack = null;
+        var rotX = 0.6, rotY = 0.78;
+        var isDragging = false;
+        var lastMouseX, lastMouseY;
+
+        function open3DViewer(track) {
+            currentTrack = track;
+            document.getElementById('modal-cell-id').innerText = track.id + " | " + track.intensity;
+            document.getElementById('modal-cell-details').innerText = `Velocità: ${track.speed_kmh} km/h (${track.direction_deg}°) | VIL: ${track.vil} kg/m² | Echo Top: ${track.echo_top} km`;
+            document.getElementById('viewer-3d-modal').style.display = 'flex';
+            render3D();
+        }
+
+        function close3DViewer() {
+            document.getElementById('viewer-3d-modal').style.display = 'none';
+            currentTrack = null;
+        }
+
+        var canvas = document.getElementById('viewer-canvas');
+        var ctx = canvas.getContext('2d');
+
+        var container = document.getElementById('canvas-3d-container');
+        container.addEventListener('mousedown', e => { isDragging = true; lastMouseX = e.clientX; lastMouseY = e.clientY; });
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => {
+            if (!isDragging) return;
+            rotY += (e.clientX - lastMouseX) * 0.008;
+            rotX += (e.clientY - lastMouseY) * 0.008;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+            render3D();
+        });
+
+        container.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                lastMouseX = e.touches[0].clientX;
+                lastMouseY = e.touches[0].clientY;
+            }
+        });
+        window.addEventListener('touchend', () => isDragging = false);
+        window.addEventListener('touchmove', e => {
+            if (!isDragging || e.touches.length !== 1) return;
+            rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
+            rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
+            lastMouseX = e.touches[0].clientX;
+            lastMouseY = e.touches[0].clientY;
+            render3D();
+        });
+
+        function getColor(val) {
+            if (val >= 12) return '#ff00ff';
+            if (val >= 10) return '#ff0000';
+            if (val >= 8)  return '#ffff00';
+            if (val >= 6)  return '#00ff00';
+            if (val >= 4)  return '#00ffff';
+            if (val >= 2)  return '#0066ff';
+            return null;
+        }
+
+        function render3D() {
+            if (!currentTrack) return;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let matrix = currentTrack.grid_matrix || [];
+            let rows = matrix.length;
+            let cols = rows > 0 ? matrix[0].length : 0;
+
+            let cx = canvas.width / 2;
+            let cy = canvas.height / 2 + 50;
+            let scale = Math.min(canvas.width, canvas.height) / 28;
+
+            let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
+            let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    let val = matrix[r][c];
+                    if (val <= 0) continue;
+
+                    let color = getColor(val);
+                    let heightLevels = val;
+
+                    for (let h = 0; h < heightLevels; h++) {
+                        let x = (c - cols / 2) * 1.2;
+                        let y = (r - rows / 2) * 1.2;
+                        let z = h * 1.0;
+
+                        // Rotazione Y
+                        let x1 = x * cosY - z * sinY;
+                        let z1 = x * sinY + z * cosY;
+
+                        // Rotazione X
+                        let y2 = y * cosX - z1 * sinX;
+                        let z2 = y * sinX + z1 * cosX;
+
+                        let px = cx + x1 * scale;
+                        let py = cy + y2 * scale;
+
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(px, py, scale * 0.45, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+        }
+
+        loadTrackerData();
+        setInterval(loadTrackerData, 180000);
+    </script>
+</body>
+</html>

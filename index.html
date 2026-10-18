@@ -345,7 +345,7 @@
                 .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
         }
 
-        // Engine Visore 3D Volumetrico Interattivo
+        // Engine Visore 3D Volumetrico Interattivo con Colonne (Sbarre)
         var currentTrack = null;
         var rotX = 0.6, rotY = 0.78;
         var isDragging = false;
@@ -387,78 +387,5 @@
             }
         });
         window.addEventListener('touchend', () => isDragging = false);
-        window.addEventListener('touchmove', e => {
-            if (!isDragging || e.touches.length !== 1) return;
-            rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
-            rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
-            lastMouseX = e.touches[0].clientX;
-            lastMouseY = e.touches[0].clientY;
-            render3D();
-        });
-
-        function getColor(val) {
-            if (val >= 12) return '#ff00ff';
-            if (val >= 10) return '#ff0000';
-            if (val >= 8)  return '#ffff00';
-            if (val >= 6)  return '#00ff00';
-            if (val >= 4)  return '#00ffff';
-            if (val >= 2)  return '#0066ff';
-            return null;
-        }
-
-        function render3D() {
-            if (!currentTrack) return;
-            canvas.width = container.clientWidth;
-            canvas.height = container.clientHeight;
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            let matrix = currentTrack.grid_matrix || [];
-            let rows = matrix.length;
-            let cols = rows > 0 ? matrix[0].length : 0;
-
-            let cx = canvas.width / 2;
-            let cy = canvas.height / 2 + 50;
-            let scale = Math.min(canvas.width, canvas.height) / 28;
-
-            let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
-            let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
-
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    let val = matrix[r][c];
-                    if (val <= 0) continue;
-
-                    let color = getColor(val);
-                    let heightLevels = val;
-
-                    for (let h = 0; h < heightLevels; h++) {
-                        let x = (c - cols / 2) * 1.2;
-                        let y = (r - rows / 2) * 1.2;
-                        let z = h * 1.0;
-
-                        // Rotazione Y
-                        let x1 = x * cosY - z * sinY;
-                        let z1 = x * sinY + z * cosY;
-
-                        // Rotazione X
-                        let y2 = y * cosX - z1 * sinX;
-                        let z2 = y * sinX + z1 * cosX;
-
-                        let px = cx + x1 * scale;
-                        let py = cy + y2 * scale;
-
-                        ctx.fillStyle = color;
-                        ctx.beginPath();
-                        ctx.arc(px, py, scale * 0.45, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            }
-        }
-
-        loadTrackerData();
-        setInterval(loadTrackerData, 180000);
-    </script>
-</body>
-</html>
+        window.addEventListener('touchmove',
+        

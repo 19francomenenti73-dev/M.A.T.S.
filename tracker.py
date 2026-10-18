@@ -77,7 +77,7 @@ def analyze_radar():
                         if 35.0 <= lat <= 48.0 and 5.0 <= lon <= 19.0:
                             aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
 
-                            # Classificazione avanzata basata su geometria, forma e stazionarietà
+                            # Classificazione avanzata
                             if aspect_ratio > 3.5:
                                 classification = "Squall Line"
                             elif aspect_ratio > 2.5 and area > 180:
@@ -121,15 +121,15 @@ def analyze_radar():
                                 [lat + lat_dir * step_dist * 3, lon + lon_dir * step_dist * 3]
                             ]
 
-                            # Calcolo approssimativo punto costa più vicino (es. lon ~ 13.5 o linee guida marittime italiane) e stima ETA in ore
-                            # Supponiamo un target costiero medio basato sulla proiezione verso est/mare
-                            dist_to_coast_deg = max(0.5, 3.5 - (lon - 9.0) * 0.5) 
-                            eta_hours = round(dist_to_coast_deg * 111.0 / max(10, speed_val), 1)
-                            
+                            # CORRETTO: Il target costiero segue rigorosamente la direzione del vettore predittivo
+                            coast_dist_scale = 2.5
                             coast_target = [
-                                lat + lat_dir * (dist_to_coast_deg / max(1e-5, abs(lat_dir))),
-                                lon + lon_dir * (dist_to_coast_deg / max(1e-5, abs(lon_dir)))
+                                lat + lat_dir * coast_dist_scale,
+                                lon + lon_dir * coast_dist_scale
                             ]
+                            
+                            total_dist_km = coast_dist_scale * 111.0
+                            eta_hours = round(total_dist_km / max(10, speed_val), 1)
 
                             patch_size = 15
                             half_p = patch_size // 2
@@ -209,4 +209,4 @@ def analyze_radar():
 if __name__ == "__main__":
     analyze_radar()
     sys.exit(0)
-    
+                                

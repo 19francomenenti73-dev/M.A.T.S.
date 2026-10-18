@@ -39,7 +39,6 @@ def analyze_radar():
     macro_structures = []
 
     z = 4
-    # Tile della regione d'interesse (Italia e Mediterraneo centrale)
     tiles_to_check = []
     for x in range(7, 10):
         for y in range(4, 6):
@@ -61,7 +60,6 @@ def analyze_radar():
                 b = img[:, :, 0].astype(float)
                 alpha = img[:, :, 3]
 
-                # Maschera per riflettività rilevanti (verde-giallo-rosso-magenta)
                 mask_high_dbz = (alpha > 50) & ((r > 130) | (g > 100)) & (b < 230)
                 if not np.any(mask_high_dbz):
                     continue
@@ -76,16 +74,26 @@ def analyze_radar():
                         x_c, y_c, w, h = cv2.boundingRect(cnt)
                         lat, lon = tile_pixel_to_latlon(z, x, y, x_c + w / 2.0, y_c + h / 2.0)
 
-                        # Filtro geografico per il territorio italiano esteso
                         if 35.0 <= lat <= 48.0 and 5.0 <= lon <= 19.0:
                             aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
 
-                            if aspect_ratio > 3.0:
-                                classification = "MCS / Linea di Groppo"
+                            # Classificazione avanzata basata su geometria, forma e stazionarietà
+                            if aspect_ratio > 3.5:
+                                classification = "Squall Line"
+                            elif aspect_ratio > 2.5 and area > 180:
+                                classification = "MCS (Mesoscale Convective System)"
                             elif aspect_ratio > 1.8:
-                                classification = "Bow Echo"
-                            elif area > 250:
-                                classification = "MCC"
+                                classification = "BOW Echo"
+                            elif area > 350:
+                                classification = "MCC (Mesoscale Convective Complex)"
+                            elif area > 250 and aspect_ratio < 1.3:
+                                classification = "V-Shape Autorigenerante"
+                            elif area > 120 and (w == h or abs(w - h) < 5):
+                                classification = "MCV (Mesoscale Convective Vortex)"
+                            elif area > 80 and aspect_ratio > 1.5:
+                                classification = "Comma Head"
+                            elif area > 60:
+                                classification = "Echo Hook"
                             else:
                                 classification = "Supercella / Cella"
 
@@ -100,7 +108,6 @@ def analyze_radar():
                             lat_dir = np.cos(rad_dir)
                             lon_dir = np.sin(rad_dir)
 
-                            # Tracciato reale storico e vettori predittivi
                             actual_path = [
                                 [lat - lat_dir * step_dist * 3, lon - lon_dir * step_dist * 3],
                                 [lat - lat_dir * step_dist * 2, lon - lon_dir * step_dist * 2],
@@ -114,7 +121,16 @@ def analyze_radar():
                                 [lat + lat_dir * step_dist * 3, lon + lon_dir * step_dist * 3]
                             ]
 
-                            # Estrazione patch locale della matrice 3D
+                            # Calcolo approssimativo punto costa più vicino (es. lon ~ 13.5 o linee guida marittime italiane) e stima ETA in ore
+                            # Supponiamo un target costiero medio basato sulla proiezione verso est/mare
+                            dist_to_coast_deg = max(0.5, 3.5 - (lon - 9.0) * 0.5) 
+                            eta_hours = round(dist_to_coast_deg * 111.0 / max(10, speed_val), 1)
+                            
+                            coast_target = [
+                                lat + lat_dir * (dist_to_coast_deg / max(1e-5, abs(lat_dir))),
+                                lon + lon_dir * (dist_to_coast_deg / max(1e-5, abs(lon_dir)))
+                            ]
+
                             patch_size = 15
                             half_p = patch_size // 2
                             px_center = int(x_c + w / 2.0)
@@ -136,17 +152,17 @@ def analyze_radar():
                                         row_vals.append(0)
                                     else:
                                         if pr > 200 and pb > 200:
-                                            row_vals.append(12)  # Magenta
+                                            row_vals.append(12)
                                         elif pr > 200 and pg < 100:
-                                            row_vals.append(10)  # Rosso
+                                            row_vals.append(10)
                                         elif pr > 200 and pg > 150:
-                                            row_vals.append(8)   # Giallo
+                                            row_vals.append(8)
                                         elif pg > 200:
-                                            row_vals.append(6)   # Verde
+                                            row_vals.append(6)
                                         elif pb > 200 and pg > 150:
-                                            row_vals.append(4)   # Ciano
+                                            row_vals.append(4)
                                         elif pb > 150:
-                                            row_vals.append(2)   # Blu
+                                            row_vals.append(2)
                                         else:
                                             row_vals.append(1)
                                 row_vals.extend([0] * (patch_size - len(row_vals)))
@@ -165,6 +181,8 @@ def analyze_radar():
                                 "intensity": f">= 32 dBZ - {classification}",
                                 "vil": vil_val,
                                 "echo_top": echo_top_val,
+                                "eta_hours": eta_hours,
+                                "coast_target": coast_target,
                                 "grid_matrix": grid_matrix,
                                 "actual_path": actual_path,
                                 "forecast_path": forecast_path
@@ -191,4 +209,4 @@ def analyze_radar():
 if __name__ == "__main__":
     analyze_radar()
     sys.exit(0)
-                          
+    

@@ -128,35 +128,21 @@
             color: #aaa;
         }
 
-        /* Marker Centroide */
-        .centroid-dot {
-            width: 12px;
-            height: 12px;
-            background: #ffcc00;
-            border: 2px solid #fff;
+        /* Anello Centroide Pulsante */
+        .centroid-ring {
+            width: 16px;
+            height: 16px;
             border-radius: 50%;
-            box-shadow: 0 0 8px rgba(255, 204, 0, 0.9);
+            border: 2px solid #ffffff;
             cursor: pointer;
-            transition: transform 0.2s ease;
-        }
-        .centroid-dot:hover {
-            transform: scale(1.4);
+            box-shadow: 0 0 10px rgba(0,0,0,0.9);
+            animation: ring-pulse 1.5s infinite ease-in-out;
         }
 
-        /* Vettori Predittivi Pulsanti */
-        .pulsing-arrow {
-            width: 0;
-            height: 0;
-            border-left: 5px solid transparent;
-            border-right: 5px solid transparent;
-            border-bottom: 11px solid #ff1a1a;
-            animation: pulse-arrow 1.2s infinite;
-        }
-
-        @keyframes pulse-arrow {
-            0% { transform: scale(0.8); opacity: 0.6; }
-            50% { transform: scale(1.3); opacity: 1; }
-            100% { transform: scale(0.8); opacity: 0.6; }
+        @keyframes ring-pulse {
+            0% { transform: scale(0.85); opacity: 0.8; }
+            50% { transform: scale(1.25); opacity: 1; }
+            100% { transform: scale(0.85); opacity: 0.8; }
         }
 
         /* Overlay Visore 3D Full-Screen */
@@ -247,8 +233,8 @@
         </div>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <div class="legend-item"><span style="width: 14px; height: 3px; background: #0066cc;"></span> Storico</div>
-            <div class="legend-item"><span style="width: 8px; height: 8px; background: #ffcc00; border-radius: 50%;"></span> Centroide</div>
-            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ff1a1a; display:inline-block; clip-path: polygon(50% 0%, 0% 100%, 100% 100%);"></span> Predittivo 3h</div>
+            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ffcc00; border-radius: 50%; border: 1px solid #fff;"></span> Centroide Severità</div>
+            <div class="legend-item"><span style="width: 14px; height: 3px; background: #ff1a1a;"></span> Predittivo (+6h)</div>
         </div>
     </div>
 
@@ -286,6 +272,27 @@
         var cellsLayer = L.layerGroup().addTo(map);
         var vectorsLayer = L.layerGroup().addTo(map);
 
+        function getColor(val) {
+            if (val >= 12) return '#ff00ff';
+            if (val >= 10) return '#ff0000';
+            if (val >= 8)  return '#ffcc00';
+            if (val >= 6)  return '#00ff00';
+            if (val >= 4)  return '#00ffff';
+            return '#0066ff';
+        }
+
+        // Calcola il valore massimo presente nella griglia per determinare la severità
+        function getMaxVal(matrix) {
+            if (!matrix || matrix.length === 0) return 4;
+            let max = 0;
+            for (let r = 0; r < matrix.length; r++) {
+                for (let c = 0; c < matrix[r].length; c++) {
+                    if (matrix[r][c] > max) max = matrix[r][c];
+                }
+            }
+            return max > 0 ? max : 4;
+        }
+
         function loadTrackerData() {
             fetch('centroids.json?' + new Date().getTime())
                 .then(res => res.json())
@@ -308,34 +315,53 @@
 
                     structures.forEach(track => {
                         let center = track.center;
+                        let peakVal = getMaxVal(track.grid_matrix);
+                        let cellColor = getColor(peakVal);
 
+                        // 1. Tracciato Storico
                         if (track.actual_path && track.actual_path.length > 0) {
                             L.polyline(track.actual_path, { color: '#0066cc', weight: 4, opacity: 0.85 }).addTo(vectorsLayer);
                         }
 
+                        // 2. Anello Centroide Pulsante basato sul colore di severità
                         if (center && center.length === 2) {
                             let centroidIcon = L.divIcon({
                                 className: 'custom-centroid',
-                                html: `<div class="centroid-dot" title="Apri Profilo 3D ${track.id}"></div>`,
-                                iconSize: [12, 12],
-                                iconAnchor: [6, 6]
+                                html: `<div class="centroid-ring" style="background-color: ${cellColor};" title="Apri Profilo 3D ${track.id}"></div>`,
+                                iconSize: [16, 16],
+                                iconAnchor: [8, 8]
                             });
 
                             let marker = L.marker([center[0], center[1]], { icon: centroidIcon }).addTo(cellsLayer);
                             marker.on('click', () => open3DViewer(track));
                         }
 
+                        // 3. Vettore Predittivo Esteso: 0-3h Solido + 3-6h Tratteggiato del colore del centroide
                         if (track.forecast_path && track.forecast_path.length > 0 && center) {
-                            L.polyline([center, ...track.forecast_path], { color: '#ff1a1a', weight: 3, dashArray: '5, 6', opacity: 0.8 }).addTo(vectorsLayer);
-                            track.forecast_path.forEach(fPoint => {
-                                let arrowIcon = L.divIcon({
-                                    className: 'arrow-icon',
-                                    html: '<div class="pulsing-arrow"></div>',
-                                    iconSize: [10, 10],
-                                    iconAnchor: [5, 5]
-                                });
-                                L.marker([fPoint[0], fPoint[1]], { icon: arrowIcon }).addTo(vectorsLayer);
-                            });
+                            let fPath = track.forecast_path;
+                            let fullForecast = [center, ...fPath];
+                            
+                            // Prime 3 ore (Linea solida)
+                            L.polyline(fullForecast, { color: cellColor, weight: 4, opacity: 0.9 }).addTo(vectorsLayer);
+
+                            // Ulteriori 3 ore estese (Linea tratteggiata)
+                            if (fPath.length >= 2) {
+                                let pLast1 = fPath[fPath.length - 2];
+                                let pLast2 = fPath[fPath.length - 1];
+                                let dLat = pLast2[0] - pLast1[0];
+                                let dLon = pLast2[1] - pLast1[1];
+
+                                let ext1 = pLast2;
+                                let ext2 = [pLast2[0] + dLat, pLast2[1] + dLon];
+                                let ext3 = [ext2[0] + dLat, ext2[1] + dLon];
+
+                                L.polyline([ext1, ext2, ext3], { 
+                                    color: cellColor, 
+                                    weight: 3, 
+                                    dashArray: '6, 8', 
+                                    opacity: 0.75 
+                                }).addTo(vectorsLayer);
+                            }
                         }
                     });
                 })
@@ -392,22 +418,13 @@
         window.addEventListener('touchmove', e => {
             if (!isDragging || e.touches.length !== 1) return;
             rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
-            rotX += (e.touches[0].clientY - lastMouseY) * 0.005;
+            rotX += (e.clientY - lastMouseY) * 0.005;
             rotX = Math.max(0.15, Math.min(0.85, rotX));
 
             lastMouseX = e.touches[0].clientX;
             lastMouseY = e.touches[0].clientY;
             render3D();
         });
-
-        function getColor(val) {
-            if (val >= 12) return '#ff00ff';
-            if (val >= 10) return '#ff0000';
-            if (val >= 8)  return '#ffcc00';
-            if (val >= 6)  return '#00ff00';
-            if (val >= 4)  return '#00ffff';
-            return '#0066ff';
-        }
 
         function render3D() {
             if (!currentTrack) return;

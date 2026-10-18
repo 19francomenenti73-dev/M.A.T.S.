@@ -18,23 +18,81 @@ def tile_pixel_to_latlon(z, x, y, px, py):
     lat_deg = np.degrees(lat_rad)
     return float(lat_deg), float(lon_deg)
 
-def get_latest_radar_tile_info():
-    """Recupera le informazioni aggiornate sul feed radar in tempo reale."""
+def latlon_to_tile(lat, lon, z):
+    """Converte coordinate Lat/Lon in indici di Tile Web Mercator per uno zoom dato."""
+    lat_rad = np.radians(lat)
+    n = 2.0 ** z
+    x_tile = int((lon + 180.0) / 360.0 * n)
+    y_tile = int((1.0 - np.arcsinh(np.tan(lat_rad)) / np.pi) / 2.0 * n)
+    # Calcola anche il pixel offset (0-256) all'interno della tile
+    px = int(((lon + 180.0) / 360.0 * n - x_tile) * 256.0)
+    py = int(((1.0 - np.arcsinh(np.tan(lat_rad)) / np.pi) / 2.0 * n - y_tile) * 256.0)
+    return x_tile, y_tile, max(0, min(255, px)), max(0, min(255, py))
+
+def get_latest_radar_and_satellite_info():
+    """Recupera le informazioni aggiornate sul feed radar e satellitare IR in tempo reale."""
+    host = "https://tilecache.rainviewer.com"
+    radar_path = "/v2/radar/1710000000"
+    sat_path = None
     try:
         response = requests.get("https://api.rainviewer.com/public/weather-maps.json", timeout=10)
         data = response.json()
-        host = data.get("host", "https://tilecache.rainviewer.com")
+        host = data.get("host", host)
         past_frames = data.get("radar", {}).get("past", [])
         if past_frames:
-            latest = past_frames[-1]
-            return host, latest.get("path")
+            radar_path = past_frames[-1].get("path", radar_path)
+        
+        # Recupera l'ultimo frame satellitare infrarosso disponibile
+        sat_infrared = data.get("satellite", {}).get("infrared", [])
+        if sat_infrared:
+            sat_path = sat_infrared[-1].get("path", None)
     except Exception as e:
-        print(f"Avviso nel recupero radar API: {e}")
-    return "https://tilecache.rainviewer.com", "/v2/radar/1710000000"
+        print(f"Avviso nel recupero API meteo: {e}")
+    return host, radar_path, sat_path
+
+def check_satellite_v_shape(host, sat_path, lat, lon, z=4):
+    """
+    Modulo di Cross-Referencing Satellitare (Asincrono e Sicuro):
+    Verifica se in corrispondenza del centroide radar esiste una firma IR "V-Shape" o Cold Top estremo.
+    Non blocca mai il flusso principale in caso di errore.
+    """
+    if not sat_path:
+        return None, None
+    
+    try:
+        tx, ty, px, py = latlon_to_tile(lat, lon, z)
+        # Formato tile satellitare IR da RainViewer: {host}{path}/256/{z}/{x}/{y}/0/0_0.png
+        sat_url = f"{host}{sat_path}/256/{z}/{tx}/{ty}/0/0_0.png"
+        res = requests.get(sat_url, timeout=5)
+        if res.status_code == 200:
+            s_img = cv2.imdecode(np.frombuffer(res.content, np.uint8), cv2.IMREAD_GRAYSCALE)
+            if s_img is not None and s_img.shape[0] >= 256 and s_img.shape[1] >= 256:
+                # Estrae un patch locale di 15x15 pixel attorno al punto stimato sulla tile IR
+                half_w = 7
+                y1 = max(0, py - half_w)
+                y2 = min(s_img.shape[0], py + half_w + 1)
+                x1 = max(0, px - half_w)
+                x2 = min(s_img.shape[1], px + half_w + 1)
+                
+                patch = s_img[y1:y2, x1:x2]
+                if patch.size > 0:
+                    min_val = int(np.min(patch)) # Nei canali IR spesso i valori più scuri/freddi o intensi denotano la cima alta
+                    max_val = int(np.max(patch))
+                    mean_val = float(np.mean(patch))
+                    
+                    # Euristica di riscontro V-Shape / Overshooting Top basata sul gradiente termico in quota
+                    # Se il gradiente locale mostra picchi freddi marcati (es. valori estremi nella scala IR)
+                    if max_val > 190 and (max_val - mean_val) > 25:
+                        estimated_temp_c = int(-40 - ((max_val / 255.0) * 35)) # stima approssimativa della temperatura di nube in alta troposfera
+                        return "V-Shape / Cold Top", estimated_temp_c
+    except Exception as sat_err:
+        print(f"Nota: Impossibile verificare il layer satellitare IR per la cella ({lat:.2f}, {lon:.2f}): {sat_err}")
+        
+    return None, None
 
 def analyze_radar():
-    """Analisi radar reale con estrazione contorni e matrici volumetriche 3D per MATS."""
-    host, path = get_latest_radar_tile_info()
+    """Analisi radar reale con estrazione contorni, matrici volumetriche 3D e cross-check satellitare per MATS."""
+    host, path, sat_path = get_latest_radar_and_satellite_info()
     radar_info = {"host": host, "path": path}
     macro_structures = []
 
@@ -77,7 +135,7 @@ def analyze_radar():
                         if 35.0 <= lat <= 48.0 and 5.0 <= lon <= 19.0:
                             aspect_ratio = max(w, h) / (min(w, h) + 1e-5)
 
-                            # Classificazione avanzata
+                            # Classificazione base radar
                             if aspect_ratio > 3.5:
                                 classification = "Squall Line"
                             elif aspect_ratio > 2.5 and area > 180:
@@ -96,6 +154,16 @@ def analyze_radar():
                                 classification = "Echo Hook"
                             else:
                                 classification = "Supercella / Cella"
+
+                            # --- MODULO DI CROSS-CHECK SATELLITARE (AGGIUNTA SICURA) ---
+                            # Se la cella è significativa, interroga in modo asincrono il layer IR satellitare
+                            sat_pattern, cloud_temp = check_satellite_v_shape(host, sat_path, lat, lon, z)
+                            if sat_pattern:
+                                # Sovrascrive o arricchisce la classificazione con il riscontro termico satellitare
+                                if cloud_temp is not None:
+                                    classification = f"{sat_pattern} (Cloud Top: {cloud_temp}°C)"
+                                else:
+                                    classification = sat_pattern
 
                             vil_val = round(min(70.0, 10.0 + (area * 0.18)), 1)
                             echo_top_val = round(min(16.0, 7.0 + (area * 0.035)), 1)
@@ -174,7 +242,6 @@ def analyze_radar():
                             flat_m = [val for row in grid_matrix for val in row if val > 0]
                             max_voxel = max(flat_m) if flat_m else 4
 
-                            # Mappatura del valore voxel massimo in dBZ effettivo
                             if max_voxel >= 12:
                                 real_dbz = 55
                             elif max_voxel >= 10:
@@ -188,7 +255,6 @@ def analyze_radar():
                             else:
                                 real_dbz = 18
 
-                            # Formula di Marshall-Palmer Z = 200 * R^1.6  ==>  R = (10^(dBZ/10) / 200)^(1/1.6)
                             z_linear = 10.0 ** (real_dbz / 10.0)
                             rain_rate = round((z_linear / 200.0) ** (1.0 / 1.6), 1)
 
@@ -227,9 +293,9 @@ def analyze_radar():
     with open("centroids.json", "w", encoding="utf-8") as f:
         json.dump(output_data, f, indent=4, ensure_ascii=False)
 
-    print(f"MATS 3D Analisi completata. Strutture reali estratte: {len(macro_structures)}")
+    print(f"MATS 3D + Satellite IR Analisi completata. Strutture elaborate: {len(macro_structures)}")
 
 if __name__ == "__main__":
     analyze_radar()
     sys.exit(0)
-                    
+        

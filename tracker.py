@@ -60,12 +60,12 @@ def analyze_radar():
                 b = img[:, :, 0].astype(float)
                 alpha = img[:, :, 3]
 
-                mask_high_dbz = (alpha > 50) & ((r > 130) | (g > 100)) & (b < 230)
-                if not np.any(mask_high_dbz):
+                mask_high_dbZ = (alpha > 50) & ((r > 130) | (g > 100)) & (b < 230)
+                if not np.any(mask_high_dbZ):
                     continue
 
                 kernel = np.ones((2, 2), np.uint8)
-                mask_clean = cv2.morphologyEx(mask_high_dbz.astype(np.uint8) * 255, cv2.MORPH_OPEN, kernel)
+                mask_clean = cv2.morphologyEx(mask_high_dbZ.astype(np.uint8) * 255, cv2.MORPH_OPEN, kernel)
                 contours, _ = cv2.findContours(mask_clean, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
                 for cnt in contours:
@@ -121,7 +121,6 @@ def analyze_radar():
                                 [lat + lat_dir * step_dist * 3, lon + lon_dir * step_dist * 3]
                             ]
 
-                            # CORRETTO: Il target costiero segue rigorosamente la direzione del vettore predittivo
                             coast_dist_scale = 2.5
                             coast_target = [
                                 lat + lat_dir * coast_dist_scale,
@@ -171,6 +170,30 @@ def analyze_radar():
                             while len(grid_matrix) < patch_size:
                                 grid_matrix.append([0] * patch_size)
 
+                            # --- CALCOLO dBZ REALE E RAIN RATE (Marshall-Palmer) ---
+                            flat_m = [val for row in grid_matrix for val in row if val > 0]
+                            max_voxel = max(flat_m) if flat_m else 4
+
+                            # Mappatura del valore voxel massimo in dBZ effettivo
+                            if max_voxel >= 12:
+                                real_dbz = 55
+                            elif max_voxel >= 10:
+                                real_dbz = 48
+                            elif max_voxel >= 8:
+                                real_dbz = 40
+                            elif max_voxel >= 6:
+                                real_dbz = 34
+                            elif max_voxel >= 4:
+                                real_dbz = 26
+                            else:
+                                real_dbz = 18
+
+                            # Formula di Marshall-Palmer Z = 200 * R^1.6  ==>  R = (10^(dBZ/10) / 200)^(1/1.6)
+                            z_linear = 10.0 ** (real_dbz / 10.0)
+                            rain_rate = round((z_linear / 200.0) ** (1.0 / 1.6), 1)
+
+                            intensity_str = f"{real_dbz} dBZ (RR: {rain_rate} mm/h) - {classification}"
+
                             track_id = f"Core-{z}{x}{y}-{cell_id_counter}"
 
                             data_item = {
@@ -178,7 +201,7 @@ def analyze_radar():
                                 "center": [lat, lon],
                                 "speed_kmh": speed_val,
                                 "direction_deg": direction_deg,
-                                "intensity": f">= 32 dBZ - {classification}",
+                                "intensity": intensity_str,
                                 "vil": vil_val,
                                 "echo_top": echo_top_val,
                                 "eta_hours": eta_hours,
@@ -209,4 +232,4 @@ def analyze_radar():
 if __name__ == "__main__":
     analyze_radar()
     sys.exit(0)
-                                
+                    

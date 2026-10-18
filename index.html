@@ -74,7 +74,6 @@
             100% { opacity: 0.6; text-shadow: 0 0 2px rgba(0, 191, 255, 0.4); }
         }
 
-        /* Crediti piccoli in basso a destra */
         .source-credits {
             position: absolute;
             bottom: 6px;
@@ -93,7 +92,6 @@
             text-decoration: none;
         }
 
-        /* Banner Operativo Inferiore */
         .map-banner {
             position: absolute;
             bottom: 24px;
@@ -128,7 +126,6 @@
             color: #aaa;
         }
 
-        /* Anello Centroide Pulsante */
         .centroid-ring {
             width: 16px;
             height: 16px;
@@ -145,7 +142,6 @@
             100% { transform: scale(0.85); opacity: 0.8; }
         }
 
-        /* Overlay Visore 3D Full-Screen */
         #viewer-3d-modal {
             display: none;
             position: fixed;
@@ -211,21 +207,17 @@
 </head>
 <body>
 
-    <!-- Header MATS -->
     <div class="mats-header">
         <div class="mats-title">MATS</div>
         <div class="mats-subtitle">Mesoscale Advanced Tracking System</div>
     </div>
 
-    <!-- Mappa -->
     <div id="map"></div>
 
-    <!-- Crediti Fonti -->
     <div class="source-credits">
         Dati: <a href="https://www.rainviewer.com" target="_blank">RainViewer Radar API</a> | Mappa: &copy; Esri World Topo
     </div>
 
-    <!-- Banner Inferiore -->
     <div class="map-banner">
         <div>
             <span><b>Strutture 3D Rilevate:</b> <span id="active-count" class="counter-badge">0</span></span>
@@ -233,12 +225,12 @@
         </div>
         <div style="display: flex; gap: 12px; flex-wrap: wrap;">
             <div class="legend-item"><span style="width: 14px; height: 3px; background: #0066cc;"></span> Storico</div>
-            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ffcc00; border-radius: 50%; border: 1px solid #fff;"></span> Centroide Severità</div>
-            <div class="legend-item"><span style="width: 14px; height: 3px; background: #ff1a1a;"></span> Predittivo (+6h)</div>
+            <div class="legend-item"><span style="width: 10px; height: 10px; background: #ffcc00; border-radius: 50%; border: 1px solid #fff;"></span> Centroide</div>
+            <div class="legend-item"><span style="width: 14px; height: 3px; background: #ff1a1a;"></span> Vettore Traiettoria</div>
+            <div class="legend-item"><span style="width: 14px; height: 10px; background: rgba(255,100,0,0.3); border: 1px dashed #ff5500;"></span> Cono ETA Costa</div>
         </div>
     </div>
 
-    <!-- Full-Screen 3D Modal Viewer -->
     <div id="viewer-3d-modal">
         <div class="modal-info-bar">
             <div>
@@ -257,7 +249,6 @@
         </div>
     </div>
 
-    <!-- Leaflet e Engine 3D -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
         var map = L.map('map', { zoomControl: false }).setView([42.5, 12.5], 6);
@@ -281,7 +272,6 @@
             return '#0066ff';
         }
 
-        // Calcola il valore massimo della matrice per determinare la severità cromatica
         function getMaxVal(matrix) {
             if (!matrix || matrix.length === 0) return 4;
             let max = 0;
@@ -323,11 +313,11 @@
                             L.polyline(track.actual_path, { color: '#0066cc', weight: 4, opacity: 0.85 }).addTo(vectorsLayer);
                         }
 
-                        // 2. Anello Centroide Pulsante con colore di severità
+                        // 2. Anello Centroide Pulsante con severità
                         if (center && center.length === 2) {
                             let centroidIcon = L.divIcon({
                                 className: 'custom-centroid',
-                                html: `<div class="centroid-ring" style="background-color: ${cellColor};" title="Apri Profilo 3D ${track.id}"></div>`,
+                                html: `<div class="centroid-ring" style="background-color: ${cellColor};" title="Apri Profilo 3D ${track.id} - ETA: ${track.eta_hours || '?'}h"></div>`,
                                 iconSize: [16, 16],
                                 iconAnchor: [8, 8]
                             });
@@ -336,51 +326,58 @@
                             marker.on('click', () => open3DViewer(track));
                         }
 
-                        // 3. Vettore Predittivo Esteso: 0-3h Solido + 3-6h Tratteggiato del colore del centroide
+                        // 3. Vettore Traiettoria Attuale
                         if (track.forecast_path && track.forecast_path.length > 0 && center) {
                             let fPath = track.forecast_path;
-                            let fullForecast = [center, ...fPath];
+                            L.polyline([center, ...fPath], { color: cellColor, weight: 4, opacity: 0.9 }).addTo(vectorsLayer);
+                        }
+
+                        // 4. Cono ETA in Costa (Stile NOAA Hurrican Cone di probabilità)
+                        if (track.coast_target && center) {
+                            let target = track.coast_target;
+                            let dLat = target[0] - center[0];
+                            let dLon = target[1] - center[1];
                             
-                            // Prime 3 ore (Linea solida)
-                            L.polyline(fullForecast, { color: cellColor, weight: 4, opacity: 0.9 }).addTo(vectorsLayer);
+                            // Vertici del cono a ventaglio per indicare l'area di incertezza d'impatto
+                            let coneLeft = [target[0] - dLon * 0.25, target[1] + dLat * 0.25];
+                            let coneRight = [target[0] + dLon * 0.25, target[1] - dLat * 0.25];
 
-                            // Ulteriori 3 ore estese (Linea tratteggiata)
-                            if (fPath.length >= 2) {
-                                let pLast1 = fPath[fPath.length - 2];
-                                let pLast2 = fPath[fPath.length - 1];
-                                let dLat = pLast2[0] - pLast1[0];
-                                let dLon = pLast2[1] - pLast1[1];
+                            let polygonPoints = [center, coneLeft, coneRight];
+                            
+                            L.polygon(polygonPoints, {
+                                color: '#ff5500',
+                                fillColor: '#ff6600',
+                                fillOpacity: 0.25,
+                                weight: 2,
+                                dashArray: '4, 4'
+                            }).addTo(vectorsLayer);
 
-                                let ext1 = pLast2;
-                                let ext2 = [pLast2[0] + dLat, pLast2[1] + dLon];
-                                let ext3 = [ext2[0] + dLat, ext2[1] + dLon];
-
-                                L.polyline([ext1, ext2, ext3], { 
-                                    color: cellColor, 
-                                    weight: 3, 
-                                    dashArray: '6, 8', 
-                                    opacity: 0.75 
-                                }).addTo(vectorsLayer);
-                            }
+                            // Marker informativo ETA sul punto di costa
+                            let etaIcon = L.divIcon({
+                                className: 'eta-badge',
+                                html: `<div style="background: rgba(0,0,0,0.85); border: 1px solid #ff5500; color: #ffaa00; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: bold; white-space: nowrap;">ETA: ${track.eta_hours || '?'}h</div>`,
+                                iconSize: [60, 20],
+                                iconAnchor: [30, 10]
+                            });
+                            L.marker(target, { icon: etaIcon }).addTo(vectorsLayer);
                         }
                     });
                 })
                 .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
         }
 
-        // Engine 3D Voxel a Colonne Dritte e Ancorate (INTATTO)
+        // Engine 3D Voxel (INTATTO e protetto)
         var currentTrack = null;
-        var rotX = 0.5; // Inclinazione prospettica fissa e pulita
-        var rotY = 0.0; // Rotazione orizzontale a 360 gradi
+        var rotX = 0.6, rotY = 0.78;
         var isDragging = false;
         var lastMouseX, lastMouseY;
 
         function open3DViewer(track) {
             currentTrack = track;
-            rotY = 0.0;
-            rotX = 0.5;
+            rotX = 0.6;
+            rotY = 0.78;
             document.getElementById('modal-cell-id').innerText = track.id + " | " + track.intensity;
-            document.getElementById('modal-cell-details').innerText = `Velocità: ${track.speed_kmh} km/h (${track.direction_deg}°) | VIL: ${track.vil} kg/m² | Echo Top: ${track.echo_top} km`;
+            document.getElementById('modal-cell-details').innerText = `Velocità: ${track.speed_kmh} km/h (${track.direction_deg}°) | VIL: ${track.vil} kg/m² | Echo Top: ${track.echo_top} km | ETA Costa: ${track.eta_hours || '?'}h`;
             document.getElementById('viewer-3d-modal').style.display = 'flex';
             render3D();
         }
@@ -399,9 +396,8 @@
         window.addEventListener('mousemove', e => {
             if (!isDragging) return;
             rotY += (e.clientX - lastMouseX) * 0.008;
-            rotX += (e.clientY - lastMouseY) * 0.005;
-            rotX = Math.max(0.15, Math.min(0.85, rotX)); // Limiti rigidi: non si ribalta MAI
-
+            rotX += (e.clientY - lastMouseY) * 0.008;
+            rotX = Math.max(0.2, Math.min(1.2, rotX));
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
             render3D();
@@ -418,9 +414,8 @@
         window.addEventListener('touchmove', e => {
             if (!isDragging || e.touches.length !== 1) return;
             rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
-            rotX += (e.touches[0].clientY - lastMouseY) * 0.005;
-            rotX = Math.max(0.15, Math.min(0.85, rotX));
-
+            rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
+            rotX = Math.max(0.2, Math.min(1.2, rotX));
             lastMouseX = e.touches[0].clientX;
             lastMouseY = e.touches[0].clientY;
             render3D();
@@ -438,67 +433,64 @@
             let cols = rows > 0 ? matrix[0].length : 0;
 
             let cx = canvas.width / 2;
-            let cy = canvas.height / 2 + 60; // Centro d'appoggio della base orizzontale
-            let scale = Math.min(canvas.width, canvas.height) / 22;
+            let cy = canvas.height / 2;
+            let scale = Math.min(canvas.width, canvas.height) / 24;
 
             let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
             let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
 
             let columnsToDraw = [];
 
-            // 1. Mappiamo il piano di base orizzontale rotante (Z = 0)
             for (let r = 0; r < rows; r++) {
                 for (let c = 0; c < cols; c++) {
                     let val = matrix[r][c];
                     if (val <= 0) continue;
 
-                    let x = (c - cols / 2 + 0.5) * 1.0;
-                    let y = (r - rows / 2 + 0.5) * 1.0;
+                    let x = (c - cols / 2) * 1.1;
+                    let y = (r - rows / 2) * 1.1;
 
-                    // Coordinate 2D proiettate della BASE della colonna
-                    let px_base = cx + (x * cosY - y * sinY) * scale;
-                    let py_base = cy + (x * sinY + y * cosY) * sinX * scale;
-                    let depth = (x * sinY + y * cosY) * cosX; // Profondità pura per Painter's Algorithm
+                    let x1_b = x * cosY;
+                    let z1_b = x * sinY;
+                    let y2_b = y * cosX - z1_b * sinX;
+                    let z2_b = y * sinX + z1_b * cosX;
 
-                    // L'altezza Z viene estesa rettamente verso l'alto (sull'asse Y dello schermo)
-                    let h_px = val * scale * 0.75;
-                    let px_top = px_base;
-                    let py_top = py_base - h_px;
+                    let z_top = val * 0.8;
+                    let x1_t = x * cosY - z_top * sinY;
+                    let z1_t = x * sinY + z_top * cosY;
+                    let y2_t = y * cosX - z1_t * sinX;
 
                     columnsToDraw.push({
                         val: val,
                         color: getColor(val),
-                        depth: depth,
-                        px_base: px_base,
-                        py_base: py_base,
-                        px_top: px_top,
-                        py_top: py_top,
-                        h_px: h_px
+                        depth: z2_b,
+                        px_b: cx + x1_b * scale,
+                        py_b: cy + y2_b * scale,
+                        px_t: cx + x1_t * scale,
+                        py_t: cy + y2_t * scale
                     });
                 }
             }
 
-            // 2. Ordiniamo per profondità (dal fondo verso il primo piano)
             columnsToDraw.sort((a, b) => a.depth - b.depth);
 
-            // 3. Disegniamo le colonne Lego dritte e ben definite
-            let barW = scale * 0.85;
-
             columnsToDraw.forEach(col => {
+                let w = scale * 0.95;
+
                 ctx.fillStyle = col.color;
-                ctx.strokeStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
                 ctx.lineWidth = 1;
 
-                // Faccia verticale principale (colonna dritta ancorata)
                 ctx.beginPath();
-                ctx.rect(col.px_base - barW / 2, col.py_top, barW, col.h_px);
+                ctx.moveTo(col.px_b - w / 2, col.py_b);
+                ctx.lineTo(col.px_b + w / 2, col.py_b);
+                ctx.lineTo(col.px_t + w / 2, col.py_t);
+                ctx.lineTo(col.px_t - w / 2, col.py_t);
+                ctx.closePath();
                 ctx.fill();
                 ctx.stroke();
 
-                // Faccia superiore (Tetto Lego del blocco)
-                ctx.fillStyle = col.color;
                 ctx.beginPath();
-                ctx.rect(col.px_top - barW / 2, col.py_top - barW / 3, barW, barW / 3);
+                ctx.rect(col.px_t - w / 2, col.py_t - w / 2, w, w);
                 ctx.fill();
                 ctx.stroke();
             });

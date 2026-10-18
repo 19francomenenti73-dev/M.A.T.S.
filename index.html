@@ -342,9 +342,9 @@
                 .catch(err => console.log('In attesa aggiornamento MATS 3D...', err));
         }
 
-        // Engine 3D Interattivo con Rendering Solido a Colonne (Sbarre Verticali)
+        // Engine 3D Interattivo Solido (Colonne Verticali Piene)
         var currentTrack = null;
-        var rotX = 0.6, rotY = 0.78;
+        var rotX = 0.5, rotY = 0.78;
         var isDragging = false;
         var lastMouseX, lastMouseY;
 
@@ -371,6 +371,8 @@
             if (!isDragging) return;
             rotY += (e.clientX - lastMouseX) * 0.008;
             rotX += (e.clientY - lastMouseY) * 0.008;
+            // Blocco dell'inclinazione verticale tra 0.1 (vista dall'alto) e 1.3 (prospettica) per impedire il capovolgimento
+            rotX = Math.max(0.1, Math.min(1.3, rotX));
             lastMouseX = e.clientX;
             lastMouseY = e.clientY;
             render3D();
@@ -388,6 +390,8 @@
             if (!isDragging || e.touches.length !== 1) return;
             rotY += (e.touches[0].clientX - lastMouseX) * 0.008;
             rotX += (e.touches[0].clientY - lastMouseY) * 0.008;
+            // Blocco dell'inclinazione su smartphone
+            rotX = Math.max(0.1, Math.min(1.3, rotX));
             lastMouseX = e.touches[0].clientX;
             lastMouseY = e.touches[0].clientY;
             render3D();
@@ -396,7 +400,7 @@
         function getColor(val) {
             if (val >= 12) return '#ff00ff';
             if (val >= 10) return '#ff0000';
-            if (val >= 8)  return '#ffff00';
+            if (val >= 8)  return '#ffcc00';
             if (val >= 6)  return '#00ff00';
             if (val >= 4)  return '#00ffff';
             if (val >= 2)  return '#0066cc';
@@ -415,13 +419,12 @@
             let cols = rows > 0 ? matrix[0].length : 0;
 
             let cx = canvas.width / 2;
-            let cy = canvas.height / 2 + 60;
-            let scale = Math.min(canvas.width, canvas.height) / 28;
+            let cy = canvas.height / 2 + 80;
+            let scale = Math.min(canvas.width, canvas.height) / 24;
 
             let cosX = Math.cos(rotX), sinX = Math.sin(rotX);
             let cosY = Math.cos(rotY), sinY = Math.sin(rotY);
 
-            // Raccolta elementi colonna da ordinare per profondità (Painter's Algorithm)
             let columnsToDraw = [];
 
             for (let r = 0; r < rows; r++) {
@@ -429,56 +432,59 @@
                     let val = matrix[r][c];
                     if (val <= 0) continue;
 
-                    let x = (c - cols / 2) * 1.2;
-                    let y = (r - rows / 2) * 1.2;
+                    let x = (c - cols / 2) * 1.0;
+                    let y = (r - rows / 2) * 1.0;
 
-                    // Proiezione Base (z = 0)
+                    // Proiezione della base (z = 0)
                     let x1_b = x * cosY;
                     let z1_b = x * sinY;
                     let y2_b = y * cosX - z1_b * sinX;
                     let z2_b = y * sinX + z1_b * cosX;
 
-                    // Proiezione Cima (z = val)
-                    let z_top = val * 0.9;
+                    // Proiezione della sommità (z = val)
+                    let z_top = val * 1.1;
                     let x1_t = x * cosY - z_top * sinY;
                     let z1_t = x * sinY + z_top * cosY;
                     let y2_t = y * cosX - z1_t * sinX;
-                    let z2_t = y * sinX + z1_t * cosX;
 
                     columnsToDraw.push({
                         val: val,
                         color: getColor(val),
                         depth: z2_b,
-                        px_base: cx + x1_b * scale,
-                        py_base: cy + y2_b * scale,
-                        px_top: cx + x1_t * scale,
-                        py_top: cy + y2_t * scale
+                        px_b: cx + x1_b * scale,
+                        py_b: cy + y2_b * scale,
+                        px_t: cx + x1_t * scale,
+                        py_t: cy + y2_t * scale
                     });
                 }
             }
 
-            // Ordinamento dal punto più lontano a quello più vicino
+            // Ordinamento per profondità (dal fondo in primo piano)
             columnsToDraw.sort((a, b) => a.depth - b.depth);
 
-            // Disegno delle colonne solide come barrette verticali spesse
-            let barWidth = scale * 0.75;
-
+            // Disegno di ciascuna colonna come blocco solido e continuo
             columnsToDraw.forEach(col => {
-                ctx.strokeStyle = col.color;
-                ctx.fillStyle = col.color;
-                ctx.lineWidth = barWidth;
-                ctx.lineCap = 'round';
+                let w = scale * 0.9;
 
-                // Tratto verticale continuo da base a cima
+                // Faccia frontale/corpo solido della colonna
+                ctx.fillStyle = col.color;
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 1;
+
                 ctx.beginPath();
-                ctx.moveTo(col.px_base, col.py_base);
-                ctx.lineTo(col.px_top, col.py_top);
+                ctx.moveTo(col.px_b - w / 2, col.py_b);
+                ctx.lineTo(col.px_b + w / 2, col.py_b);
+                ctx.lineTo(col.px_t + w / 2, col.py_t);
+                ctx.lineTo(col.px_t - w / 2, col.py_t);
+                ctx.closePath();
+                ctx.fill();
                 ctx.stroke();
 
-                // Cappuccio superiore
+                // Faccia di testa (sommità della colonna)
                 ctx.beginPath();
-                ctx.arc(col.px_top, col.py_top, barWidth / 2, 0, Math.PI * 2);
+                ctx.arc(col.px_t, col.py_t, w / 2, 0, Math.PI * 2);
                 ctx.fill();
+                ctx.stroke();
             });
         }
 
@@ -486,5 +492,4 @@
         setInterval(loadTrackerData, 180000);
     </script>
 </body>
-                </html>
-                
+</html>
